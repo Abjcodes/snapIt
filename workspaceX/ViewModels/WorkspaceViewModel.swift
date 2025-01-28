@@ -21,6 +21,15 @@ class WorkspaceViewModel: ObservableObject {
             }
         }
     }
+    @Published var activeWorkspaceId: UUID? {
+        didSet {
+            if let id = activeWorkspaceId {
+                UserDefaults.standard.set(id.uuidString, forKey: "activeWorkspaceId")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "activeWorkspaceId")
+            }
+        }
+    }
     
     private let workspacesKey = "savedWorkspaces"
     
@@ -81,6 +90,20 @@ class WorkspaceViewModel: ObservableObject {
             if selectedWorkspace?.id == workspace.id {
                 selectedWorkspace = updatedWorkspace
             }
+        }
+    }
+    
+    func stopWorkspace(_ workspace: Workspace) {
+        if activeWorkspaceId == workspace.id {
+            for item in workspace.items {
+                if item.type == .application {
+                    let url = URL(fileURLWithPath: item.path)
+                    if let runningApp = NSWorkspace.shared.runningApplications.first(where: { $0.bundleURL == url }) {
+                        runningApp.terminate()
+                    }
+                }
+            }
+            activeWorkspaceId = nil
         }
     }
 }
