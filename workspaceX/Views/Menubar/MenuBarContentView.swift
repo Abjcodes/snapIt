@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct MenuBarContentView: View {
-    @StateObject private var viewModel = WorkspaceViewModel()
+    @EnvironmentObject private var viewModel: WorkspaceViewModel
     
     var body: some View {
         Group {

@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var viewModel = WorkspaceViewModel()
+    @EnvironmentObject private var viewModel: WorkspaceViewModel
 
     var body: some View {
         NavigationSplitView {
