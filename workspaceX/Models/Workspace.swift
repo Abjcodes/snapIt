@@ -4,11 +4,13 @@ struct Workspace: Identifiable, Equatable, Hashable, Codable {
     let id: UUID
     var name: String
     var items: [WorkspaceItem]
+    var icon: String = "folder"
     
-    init(id: UUID = UUID(), name: String, items: [WorkspaceItem] = []) {
+    init(id: UUID = UUID(), name: String, items: [WorkspaceItem] = [], icon: String = "folder") {
         self.id = id
         self.name = name
         self.items = items
+        self.icon = icon
     }
 }
 

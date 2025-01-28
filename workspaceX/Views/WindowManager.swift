@@ -34,7 +34,7 @@ class WindowManager {
         let appRef = AXUIElementCreateApplication(pid)
         
         // Check accessibility permissions
-        var accessibilityEnabled = AXIsProcessTrusted()
+        let accessibilityEnabled = AXIsProcessTrusted()
         if !accessibilityEnabled {
             print("Warning: Accessibility permissions not granted")
             return

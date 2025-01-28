@@ -151,7 +151,8 @@ struct WorkspaceDetailView: View {
         if item.type == .application {
             return NSWorkspace.shared.icon(forFile: item.path)
         } else {
-            return NSWorkspace.shared.icon(forFileType: item.type == .folder ? "public.folder" : "public.data")
+            let contentType = item.type == .folder ? UTType.folder : UTType.data
+            return NSWorkspace.shared.icon(for: contentType)
         }
     }
     
