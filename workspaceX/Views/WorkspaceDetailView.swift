@@ -76,9 +76,18 @@ struct WorkspaceDetailView: View {
                     
                     TableColumn("") { item in
                         HStack {
-                            Button(action: { launchItem(item) }) {
-                                Image(systemName: "play.circle.fill")
+                            Button(action: {
+                                if isWorkspaceActive {
+                                    if let runningApp = NSWorkspace.shared.runningApplications.first(where: { $0.bundleURL == URL(fileURLWithPath: item.path) }) {
+                                        runningApp.terminate()
+                                    }
+                                } else {
+                                    launchItem(item)
+                                }
+                            }) {
+                                Image(systemName: isWorkspaceActive ? "stop.circle.fill" : "play.circle.fill")
                                     .symbolRenderingMode(.hierarchical)
+                                    .foregroundStyle(isWorkspaceActive ? .red : .primary)
                             }
                             .buttonStyle(.borderless)
                             
@@ -132,8 +141,15 @@ struct WorkspaceDetailView: View {
         }
         .toolbar {
             ToolbarItemGroup {
-                Button(action: launchWorkspace) {
-                    Label("Launch All", systemImage: "play.circle.fill")
+                Button(action: {
+                    if isWorkspaceActive {
+                        workspaceViewModel.stopWorkspace(workspace)
+                    } else {
+                        launchWorkspace()
+                    }
+                }) {
+                    Label(isWorkspaceActive ? "Stop All" : "Launch All",
+                          systemImage: isWorkspaceActive ? "stop.circle.fill" : "play.circle.fill")
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(workspace.items.isEmpty || isLaunching)
@@ -195,6 +211,7 @@ struct WorkspaceDetailView: View {
     
     private func launchWorkspace() {
         isLaunching = true
+        workspaceViewModel.activeWorkspaceId = workspace.id
         
         for item in workspace.items {
             launchItem(item)
@@ -203,6 +220,10 @@ struct WorkspaceDetailView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
             isLaunching = false
         }
+    }
+    
+    var isWorkspaceActive: Bool {
+        workspaceViewModel.activeWorkspaceId == workspace.id
     }
     
     private func launchItem(_ item: WorkspaceItem) {
