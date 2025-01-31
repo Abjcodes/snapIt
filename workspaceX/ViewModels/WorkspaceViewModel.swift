@@ -1,9 +1,3 @@
-//
-//  WorkspaceViewModel.swift
-//  workspaceX
-//
-//  Created by P10 on 03/01/25.
-//
 import SwiftUI
 
 class WorkspaceViewModel: ObservableObject {
