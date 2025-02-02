@@ -32,6 +32,45 @@ struct WorkspaceDetailView: View {
                 }
                 .padding()
                 
+                // Window Preview
+                VStack {
+                    Text("Window Layout Preview")
+                        .font(.headline)
+                        .padding(.bottom, 4)
+                    
+                    GeometryReader { geometry in
+                        ZStack {
+                            // Desktop Wallpaper Background
+                            if let screen = NSScreen.main,
+                               let wallpaperURL = NSWorkspace.shared.desktopImageURL(for: screen),
+                               let wallpaperImage = NSImage(contentsOf: wallpaperURL) {
+                                Image(nsImage: wallpaperImage)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: geometry.size.width, height: geometry.size.height)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                            }
+                            
+                            // Window previews
+                            ForEach(workspace.items) { item in
+                                let frame = getWindowFrame(for: item.layout, in: geometry.size)
+                                WindowPreviewItem(item: item)
+                                    .frame(width: frame.width, height: frame.height)
+                                    .position(x: frame.minX + frame.width/2, y: frame.minY + frame.height/2)
+                            }
+                        }
+                    }
+                    .frame(width: 300, height: 300)
+                    .background(Color(NSColor.windowBackgroundColor).opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                    )
+                    .padding(.bottom)
+                }
+                .padding()
+                
                 // Table View
                 Table(workspace.items, selection: $selection, sortOrder: $sortOrder) {
                     TableColumn("Name") { item in
@@ -269,5 +308,158 @@ struct WorkspaceDetailView_Previews: PreviewProvider {
     static var previews: some View {
         WorkspaceDetailView(workspace: Workspace(name: "Test Workspace"))
             .environmentObject(WorkspaceViewModel())
+    }
+}
+
+private func getPreviewPosition(_ layout: WindowLayout, size: CGSize) -> CGPoint {
+    let width = size.width
+    let height = size.height
+    let margin: CGFloat = 20
+    let itemWidth: CGFloat = 60
+    let itemHeight: CGFloat = 30
+    
+    let availableWidth = width - margin * 2
+    let availableHeight = height - margin * 2
+    
+    let centerX = width / 2
+    let centerY = height / 2
+    
+    let leftX = margin + itemWidth/2
+    let rightX = width - margin - itemWidth/2
+    let topY = margin + itemHeight/2
+    let bottomY = height - margin - itemHeight/2
+    
+    switch layout {
+    case .default:
+        return CGPoint(x: centerX, y: centerY)
+    case .leftHalf:
+        return CGPoint(x: leftX + availableWidth/4, y: centerY)
+    case .rightHalf:
+        return CGPoint(x: rightX - availableWidth/4, y: centerY)
+    case .topHalf:
+        return CGPoint(x: centerX, y: topY + availableHeight/4)
+    case .bottomHalf:
+        return CGPoint(x: centerX, y: bottomY - availableHeight/4)
+    case .leftOneThird:
+        return CGPoint(x: leftX + availableWidth/6, y: centerY)
+    case .rightOneThird:
+        return CGPoint(x: rightX - availableWidth/6, y: centerY)
+    case .middleOneThird:
+        return CGPoint(x: centerX, y: centerY)
+    case .leftTwoThirds:
+        return CGPoint(x: leftX + availableWidth/3, y: centerY)
+    case .rightTwoThirds:
+        return CGPoint(x: rightX - availableWidth/3, y: centerY)
+    case .topLeftQuarter:
+        return CGPoint(x: leftX + availableWidth/4, y: topY + availableHeight/4)
+    case .bottomLeftQuarter:
+        return CGPoint(x: leftX + availableWidth/4, y: bottomY - availableHeight/4)
+    case .topRightQuarter:
+        return CGPoint(x: rightX - availableWidth/4, y: topY + availableHeight/4)
+    case .bottomRightQuarter:
+        return CGPoint(x: rightX - availableWidth/4, y: bottomY - availableHeight/4)
+    case .topLeftSixth:
+        return CGPoint(x: leftX + availableWidth/6, y: topY + availableHeight/4)
+    case .topMiddleSixth:
+        return CGPoint(x: centerX, y: topY + availableHeight/4)
+    case .topRightSixth:
+        return CGPoint(x: rightX - availableWidth/6, y: topY + availableHeight/4)
+    case .bottomLeftSixth:
+        return CGPoint(x: leftX + availableWidth/6, y: bottomY - availableHeight/4)
+    case .bottomMiddleSixth:
+        return CGPoint(x: centerX, y: bottomY - availableHeight/4)
+    case .bottomRightSixth:
+        return CGPoint(x: rightX - availableWidth/6, y: bottomY - availableHeight/4)
+    }
+}
+
+struct WindowPreviewItem: View {
+    let item: WorkspaceItem
+    
+    var body: some View {
+        VStack(spacing: 2) {
+            Image(nsImage: NSWorkspace.shared.icon(forFile: item.path))
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 20, height: 20)
+            Text(item.name)
+                .font(.system(size: 8))
+                .lineLimit(1)
+        }
+        .padding(4)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Color(NSColor.windowBackgroundColor)
+                .opacity(0.8))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 4)
+                .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.1), radius: 1, x: 0, y: 1)
+    }
+}
+
+private func getWindowFrame(for layout: WindowLayout, in size: CGSize) -> CGRect {
+    let width = size.width
+    let height = size.height
+    
+    // Helper function to create frame without margins
+    func createFrame(x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat) -> CGRect {
+        let frameWidth = w * width
+        let frameHeight = h * height
+        let frameX = x * width
+        let frameY = (1 - y - h) * height // Flip Y coordinate system
+        
+        return CGRect(
+            x: frameX,
+            y: frameY,
+            width: frameWidth,
+            height: frameHeight
+        )
+    }
+    
+    switch layout {
+    case .default:
+        return createFrame(x: 0.25, y: 0.25, w: 0.5, h: 0.5)
+    case .leftHalf:
+        return createFrame(x: 0, y: 0, w: 0.5, h: 1)
+    case .rightHalf:
+        return createFrame(x: 0.5, y: 0, w: 0.5, h: 1)
+    case .topHalf:
+        return createFrame(x: 0, y: 0.5, w: 1, h: 0.5)
+    case .bottomHalf:
+        return createFrame(x: 0, y: 0, w: 1, h: 0.5)
+    case .leftOneThird:
+        return createFrame(x: 0, y: 0, w: 0.33, h: 1)
+    case .rightOneThird:
+        return createFrame(x: 0.67, y: 0, w: 0.33, h: 1)
+    case .middleOneThird:
+        return createFrame(x: 0.33, y: 0, w: 0.34, h: 1)
+    case .leftTwoThirds:
+        return createFrame(x: 0, y: 0, w: 0.67, h: 1)
+    case .rightTwoThirds:
+        return createFrame(x: 0.33, y: 0, w: 0.67, h: 1)
+    case .topLeftQuarter:
+        return createFrame(x: 0, y: 0.5, w: 0.5, h: 0.5)
+    case .bottomLeftQuarter:
+        return createFrame(x: 0, y: 0, w: 0.5, h: 0.5)
+    case .topRightQuarter:
+        return createFrame(x: 0.5, y: 0.5, w: 0.5, h: 0.5)
+    case .bottomRightQuarter:
+        return createFrame(x: 0.5, y: 0, w: 0.5, h: 0.5)
+    case .topLeftSixth:
+        return createFrame(x: 0, y: 0.5, w: 0.33, h: 0.5)
+    case .topMiddleSixth:
+        return createFrame(x: 0.33, y: 0.5, w: 0.34, h: 0.5)
+    case .topRightSixth:
+        return createFrame(x: 0.67, y: 0.5, w: 0.33, h: 0.5)
+    case .bottomLeftSixth:
+        return createFrame(x: 0, y: 0, w: 0.33, h: 0.5)
+    case .bottomMiddleSixth:
+        return createFrame(x: 0.33, y: 0, w: 0.34, h: 0.5)
+    case .bottomRightSixth:
+        return createFrame(x: 0.67, y: 0, w: 0.33, h: 0.5)
     }
 }
