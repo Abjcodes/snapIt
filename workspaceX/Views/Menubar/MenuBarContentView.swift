@@ -72,15 +72,48 @@ struct WorkspaceMenuItem: View {
     private func launchWorkspace(_ workspace: Workspace) {
         viewModel.activeWorkspaceId = workspace.id
         for item in workspace.items {
-            let url = URL(fileURLWithPath: item.path)
-            NSWorkspace.shared.open(url)
+            if isBrowserApp(item.path) && item.url != nil {
+                let browserURL = URL(fileURLWithPath: item.path)
+                let config = NSWorkspace.OpenConfiguration()
+                
+                // Format the URL properly for browser launch
+                var urlString = item.url!
+                if !urlString.lowercased().hasPrefix("http://") && !urlString.lowercased().hasPrefix("https://") {
+                    urlString = "https://" + urlString
+                }
+                
+                // Handle Safari differently
+                if let bundleId = Bundle(path: item.path)?.bundleIdentifier,
+                   bundleId == "com.apple.Safari" {
+                    if let url = URL(string: urlString) {
+                        NSWorkspace.shared.open([url],
+                                                withApplicationAt: browserURL,
+                                                configuration: config)
+                    }
+                } else {
+                    config.arguments = [urlString]
+                    NSWorkspace.shared.openApplication(at: browserURL, configuration: config)
+                }
+            } else {
+                let url = URL(fileURLWithPath: item.path)
+                NSWorkspace.shared.open(url)
+            }
             
             if item.layout != .default {
                 WindowManager.shared.positionWindow(forItem: item)
             }
         }
     }
-}
+    
+    private func isBrowserApp(_ path: String) -> Bool {
+        let browserBundles = ["com.google.Chrome", "com.apple.Safari", "org.mozilla.firefox"]
+        if let bundle = Bundle(path: path)?.bundleIdentifier {
+            return browserBundles.contains(bundle)
+        }
+        return false
+    }
+    }
+
 
 #Preview {
     MenuBarContentView()
