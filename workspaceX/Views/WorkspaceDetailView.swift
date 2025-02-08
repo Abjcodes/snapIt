@@ -113,6 +113,18 @@ struct WorkspaceDetailView: View {
                     }
                     .width(min: 100, ideal: 300)
                     
+                    TableColumn("URL") { item in
+                        if isBrowserApp(item.path) {
+                            TextField("Enter URL", text: Binding(
+                                get: { item.url ?? "" },
+                                set: { updateItemURL(item, $0) }
+                            ))
+                        } else {
+                            Text("")
+                        }
+                    }
+                    .width(200)
+                    
                     TableColumn("") { item in
                         HStack {
                             Button(action: {
@@ -265,201 +277,240 @@ struct WorkspaceDetailView: View {
         workspaceViewModel.activeWorkspaceId == workspace.id
     }
     
-    private func launchItem(_ item: WorkspaceItem) {
-        let url = URL(fileURLWithPath: item.path)
-        NSWorkspace.shared.open(url)
-        
-        if item.layout != .default {
-            WindowManager.shared.positionWindow(forItem: item)
+    private func isBrowserApp(_ path: String) -> Bool {
+        let browserBundles = ["com.google.Chrome", "com.apple.Safari", "org.mozilla.firefox"]
+        if let bundle = Bundle(path: path)?.bundleIdentifier {
+            return browserBundles.contains(bundle)
+        }
+        return false
+    }
+    
+    private func updateItemURL(_ item: WorkspaceItem, _ newURL: String) {
+        var updatedItems = workspace.items
+        if let index = updatedItems.firstIndex(where: { $0.id == item.id }) {
+            var updatedItem = item
+            updatedItem.url = newURL.isEmpty ? nil : newURL
+            updatedItems[index] = updatedItem
+            workspaceViewModel.updateWorkspaceItems(workspace, items: updatedItems)
         }
     }
-}
-
-struct WorkspaceInspectorView: View {
-    let items: [WorkspaceItem]
     
-    var body: some View {
-        List {
-            ForEach(items) { item in
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(item.name)
-                        .font(.headline)
-                    
-                    Text("Type: \(item.type.displayName)")
-                        .foregroundColor(.secondary)
-                    
-                    Text("Layout: \(item.layout.rawValue)")
-                        .foregroundColor(.secondary)
-                    
-                    Text("Path:")
-                        .foregroundColor(.secondary)
-                    Text(item.path)
-                        .font(.system(.caption, design: .monospaced))
-                        .lineLimit(3)
+    private func launchItem(_ item: WorkspaceItem) {
+        if isBrowserApp(item.path) && item.url != nil {
+            let browserURL = URL(fileURLWithPath: item.path)
+            let config = NSWorkspace.OpenConfiguration()
+            
+            // Format the URL properly for browser launch
+            var urlString = item.url!
+            if !urlString.lowercased().hasPrefix("http://") && !urlString.lowercased().hasPrefix("https://") {
+                urlString = "https://" + urlString
+            }
+            
+            // Handle Safari differently
+            if let bundleId = Bundle(path: item.path)?.bundleIdentifier,
+               bundleId == "com.apple.Safari" {
+                if let url = URL(string: urlString) {
+                    NSWorkspace.shared.open([url],
+                                            withApplicationAt: browserURL,
+                                            configuration: config)
                 }
-                .padding(.vertical, 4)
+            } else {
+                config.arguments = [urlString]
+                NSWorkspace.shared.openApplication(at: browserURL, configuration: config)
+            }
+            
+            if item.layout != .default {
+                WindowManager.shared.positionWindow(forItem: item)
             }
         }
-        .navigationTitle("Configure")
     }
-}
-
-struct WorkspaceDetailView_Previews: PreviewProvider {
-    static var previews: some View {
-        WorkspaceDetailView(workspace: Workspace(name: "Test Workspace"))
-            .environmentObject(WorkspaceViewModel())
-    }
-}
-
-private func getPreviewPosition(_ layout: WindowLayout, size: CGSize) -> CGPoint {
-    let width = size.width
-    let height = size.height
-    let margin: CGFloat = 20
-    let itemWidth: CGFloat = 60
-    let itemHeight: CGFloat = 30
     
-    let availableWidth = width - margin * 2
-    let availableHeight = height - margin * 2
-    
-    let centerX = width / 2
-    let centerY = height / 2
-    
-    let leftX = margin + itemWidth/2
-    let rightX = width - margin - itemWidth/2
-    let topY = margin + itemHeight/2
-    let bottomY = height - margin - itemHeight/2
-    
-    switch layout {
-    case .default:
-        return CGPoint(x: centerX, y: centerY)
-    case .leftHalf:
-        return CGPoint(x: leftX + availableWidth/4, y: centerY)
-    case .rightHalf:
-        return CGPoint(x: rightX - availableWidth/4, y: centerY)
-    case .topHalf:
-        return CGPoint(x: centerX, y: topY + availableHeight/4)
-    case .bottomHalf:
-        return CGPoint(x: centerX, y: bottomY - availableHeight/4)
-    case .leftOneThird:
-        return CGPoint(x: leftX + availableWidth/6, y: centerY)
-    case .rightOneThird:
-        return CGPoint(x: rightX - availableWidth/6, y: centerY)
-    case .middleOneThird:
-        return CGPoint(x: centerX, y: centerY)
-    case .leftTwoThirds:
-        return CGPoint(x: leftX + availableWidth/3, y: centerY)
-    case .rightTwoThirds:
-        return CGPoint(x: rightX - availableWidth/3, y: centerY)
-    case .topLeftQuarter:
-        return CGPoint(x: leftX + availableWidth/4, y: topY + availableHeight/4)
-    case .bottomLeftQuarter:
-        return CGPoint(x: leftX + availableWidth/4, y: bottomY - availableHeight/4)
-    case .topRightQuarter:
-        return CGPoint(x: rightX - availableWidth/4, y: topY + availableHeight/4)
-    case .bottomRightQuarter:
-        return CGPoint(x: rightX - availableWidth/4, y: bottomY - availableHeight/4)
-    case .topLeftSixth:
-        return CGPoint(x: leftX + availableWidth/6, y: topY + availableHeight/4)
-    case .topMiddleSixth:
-        return CGPoint(x: centerX, y: topY + availableHeight/4)
-    case .topRightSixth:
-        return CGPoint(x: rightX - availableWidth/6, y: topY + availableHeight/4)
-    case .bottomLeftSixth:
-        return CGPoint(x: leftX + availableWidth/6, y: bottomY - availableHeight/4)
-    case .bottomMiddleSixth:
-        return CGPoint(x: centerX, y: bottomY - availableHeight/4)
-    case .bottomRightSixth:
-        return CGPoint(x: rightX - availableWidth/6, y: bottomY - availableHeight/4)
-    }
-}
-
-struct WindowPreviewItem: View {
-    let item: WorkspaceItem
-    
-    var body: some View {
-        VStack(spacing: 2) {
-            Image(nsImage: NSWorkspace.shared.icon(forFile: item.path))
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 20, height: 20)
-            Text(item.name)
-                .font(.system(size: 8))
-                .lineLimit(1)
-        }
-        .padding(4)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 4)
-                .fill(Color(NSColor.windowBackgroundColor)
-                .opacity(0.8))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 4)
-                .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(0.1), radius: 1, x: 0, y: 1)
-    }
-}
-
-private func getWindowFrame(for layout: WindowLayout, in size: CGSize) -> CGRect {
-    let width = size.width
-    let height = size.height
-    
-    // Helper function to create frame without margins
-    func createFrame(x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat) -> CGRect {
-        let frameWidth = w * width
-        let frameHeight = h * height
-        let frameX = x * width
-        let frameY = (1 - y - h) * height // Flip Y coordinate system
+    struct WorkspaceInspectorView: View {
+        let items: [WorkspaceItem]
         
-        return CGRect(
-            x: frameX,
-            y: frameY,
-            width: frameWidth,
-            height: frameHeight
-        )
+        var body: some View {
+            List {
+                ForEach(items) { item in
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(item.name)
+                            .font(.headline)
+                        
+                        Text("Type: \(item.type.displayName)")
+                            .foregroundColor(.secondary)
+                        
+                        Text("Layout: \(item.layout.rawValue)")
+                            .foregroundColor(.secondary)
+                        
+                        Text("Path:")
+                            .foregroundColor(.secondary)
+                        Text(item.path)
+                            .font(.system(.caption, design: .monospaced))
+                            .lineLimit(3)
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+            .navigationTitle("Configure")
+        }
     }
     
-    switch layout {
-    case .default:
-        return createFrame(x: 0.25, y: 0.25, w: 0.5, h: 0.5)
-    case .leftHalf:
-        return createFrame(x: 0, y: 0, w: 0.5, h: 1)
-    case .rightHalf:
-        return createFrame(x: 0.5, y: 0, w: 0.5, h: 1)
-    case .topHalf:
-        return createFrame(x: 0, y: 0.5, w: 1, h: 0.5)
-    case .bottomHalf:
-        return createFrame(x: 0, y: 0, w: 1, h: 0.5)
-    case .leftOneThird:
-        return createFrame(x: 0, y: 0, w: 0.33, h: 1)
-    case .rightOneThird:
-        return createFrame(x: 0.67, y: 0, w: 0.33, h: 1)
-    case .middleOneThird:
-        return createFrame(x: 0.33, y: 0, w: 0.34, h: 1)
-    case .leftTwoThirds:
-        return createFrame(x: 0, y: 0, w: 0.67, h: 1)
-    case .rightTwoThirds:
-        return createFrame(x: 0.33, y: 0, w: 0.67, h: 1)
-    case .topLeftQuarter:
-        return createFrame(x: 0, y: 0.5, w: 0.5, h: 0.5)
-    case .bottomLeftQuarter:
-        return createFrame(x: 0, y: 0, w: 0.5, h: 0.5)
-    case .topRightQuarter:
-        return createFrame(x: 0.5, y: 0.5, w: 0.5, h: 0.5)
-    case .bottomRightQuarter:
-        return createFrame(x: 0.5, y: 0, w: 0.5, h: 0.5)
-    case .topLeftSixth:
-        return createFrame(x: 0, y: 0.5, w: 0.33, h: 0.5)
-    case .topMiddleSixth:
-        return createFrame(x: 0.33, y: 0.5, w: 0.34, h: 0.5)
-    case .topRightSixth:
-        return createFrame(x: 0.67, y: 0.5, w: 0.33, h: 0.5)
-    case .bottomLeftSixth:
-        return createFrame(x: 0, y: 0, w: 0.33, h: 0.5)
-    case .bottomMiddleSixth:
-        return createFrame(x: 0.33, y: 0, w: 0.34, h: 0.5)
-    case .bottomRightSixth:
-        return createFrame(x: 0.67, y: 0, w: 0.33, h: 0.5)
+    struct WorkspaceDetailView_Previews: PreviewProvider {
+        static var previews: some View {
+            WorkspaceDetailView(workspace: Workspace(name: "Test Workspace"))
+                .environmentObject(WorkspaceViewModel())
+        }
+    }
+    
+    private func getPreviewPosition(_ layout: WindowLayout, size: CGSize) -> CGPoint {
+        let width = size.width
+        let height = size.height
+        let margin: CGFloat = 20
+        let itemWidth: CGFloat = 60
+        let itemHeight: CGFloat = 30
+        
+        let availableWidth = width - margin * 2
+        let availableHeight = height - margin * 2
+        
+        let centerX = width / 2
+        let centerY = height / 2
+        
+        let leftX = margin + itemWidth/2
+        let rightX = width - margin - itemWidth/2
+        let topY = margin + itemHeight/2
+        let bottomY = height - margin - itemHeight/2
+        
+        switch layout {
+        case .default:
+            return CGPoint(x: centerX, y: centerY)
+        case .leftHalf:
+            return CGPoint(x: leftX + availableWidth/4, y: centerY)
+        case .rightHalf:
+            return CGPoint(x: rightX - availableWidth/4, y: centerY)
+        case .topHalf:
+            return CGPoint(x: centerX, y: topY + availableHeight/4)
+        case .bottomHalf:
+            return CGPoint(x: centerX, y: bottomY - availableHeight/4)
+        case .leftOneThird:
+            return CGPoint(x: leftX + availableWidth/6, y: centerY)
+        case .rightOneThird:
+            return CGPoint(x: rightX - availableWidth/6, y: centerY)
+        case .middleOneThird:
+            return CGPoint(x: centerX, y: centerY)
+        case .leftTwoThirds:
+            return CGPoint(x: leftX + availableWidth/3, y: centerY)
+        case .rightTwoThirds:
+            return CGPoint(x: rightX - availableWidth/3, y: centerY)
+        case .topLeftQuarter:
+            return CGPoint(x: leftX + availableWidth/4, y: topY + availableHeight/4)
+        case .bottomLeftQuarter:
+            return CGPoint(x: leftX + availableWidth/4, y: bottomY - availableHeight/4)
+        case .topRightQuarter:
+            return CGPoint(x: rightX - availableWidth/4, y: topY + availableHeight/4)
+        case .bottomRightQuarter:
+            return CGPoint(x: rightX - availableWidth/4, y: bottomY - availableHeight/4)
+        case .topLeftSixth:
+            return CGPoint(x: leftX + availableWidth/6, y: topY + availableHeight/4)
+        case .topMiddleSixth:
+            return CGPoint(x: centerX, y: topY + availableHeight/4)
+        case .topRightSixth:
+            return CGPoint(x: rightX - availableWidth/6, y: topY + availableHeight/4)
+        case .bottomLeftSixth:
+            return CGPoint(x: leftX + availableWidth/6, y: bottomY - availableHeight/4)
+        case .bottomMiddleSixth:
+            return CGPoint(x: centerX, y: bottomY - availableHeight/4)
+        case .bottomRightSixth:
+            return CGPoint(x: rightX - availableWidth/6, y: bottomY - availableHeight/4)
+        }
+    }
+    
+    struct WindowPreviewItem: View {
+        let item: WorkspaceItem
+        
+        var body: some View {
+            VStack(spacing: 2) {
+                Image(nsImage: NSWorkspace.shared.icon(forFile: item.path))
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 20, height: 20)
+                Text(item.name)
+                    .font(.system(size: 8))
+                    .lineLimit(1)
+            }
+            .padding(4)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color(NSColor.windowBackgroundColor)
+                        .opacity(0.8))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 4)
+                    .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.1), radius: 1, x: 0, y: 1)
+        }
+    }
+    
+    private func getWindowFrame(for layout: WindowLayout, in size: CGSize) -> CGRect {
+        let width = size.width
+        let height = size.height
+        
+        // Helper function to create frame without margins
+        func createFrame(x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat) -> CGRect {
+            let frameWidth = w * width
+            let frameHeight = h * height
+            let frameX = x * width
+            let frameY = (1 - y - h) * height // Flip Y coordinate system
+            
+            return CGRect(
+                x: frameX,
+                y: frameY,
+                width: frameWidth,
+                height: frameHeight
+            )
+        }
+        
+        switch layout {
+        case .default:
+            return createFrame(x: 0.25, y: 0.25, w: 0.5, h: 0.5)
+        case .leftHalf:
+            return createFrame(x: 0, y: 0, w: 0.5, h: 1)
+        case .rightHalf:
+            return createFrame(x: 0.5, y: 0, w: 0.5, h: 1)
+        case .topHalf:
+            return createFrame(x: 0, y: 0.5, w: 1, h: 0.5)
+        case .bottomHalf:
+            return createFrame(x: 0, y: 0, w: 1, h: 0.5)
+        case .leftOneThird:
+            return createFrame(x: 0, y: 0, w: 0.33, h: 1)
+        case .rightOneThird:
+            return createFrame(x: 0.67, y: 0, w: 0.33, h: 1)
+        case .middleOneThird:
+            return createFrame(x: 0.33, y: 0, w: 0.34, h: 1)
+        case .leftTwoThirds:
+            return createFrame(x: 0, y: 0, w: 0.67, h: 1)
+        case .rightTwoThirds:
+            return createFrame(x: 0.33, y: 0, w: 0.67, h: 1)
+        case .topLeftQuarter:
+            return createFrame(x: 0, y: 0.5, w: 0.5, h: 0.5)
+        case .bottomLeftQuarter:
+            return createFrame(x: 0, y: 0, w: 0.5, h: 0.5)
+        case .topRightQuarter:
+            return createFrame(x: 0.5, y: 0.5, w: 0.5, h: 0.5)
+        case .bottomRightQuarter:
+            return createFrame(x: 0.5, y: 0, w: 0.5, h: 0.5)
+        case .topLeftSixth:
+            return createFrame(x: 0, y: 0.5, w: 0.33, h: 0.5)
+        case .topMiddleSixth:
+            return createFrame(x: 0.33, y: 0.5, w: 0.34, h: 0.5)
+        case .topRightSixth:
+            return createFrame(x: 0.67, y: 0.5, w: 0.33, h: 0.5)
+        case .bottomLeftSixth:
+            return createFrame(x: 0, y: 0, w: 0.33, h: 0.5)
+        case .bottomMiddleSixth:
+            return createFrame(x: 0.33, y: 0, w: 0.34, h: 0.5)
+        case .bottomRightSixth:
+            return createFrame(x: 0.67, y: 0, w: 0.33, h: 0.5)
+        }
     }
 }

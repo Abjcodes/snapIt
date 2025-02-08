@@ -19,7 +19,8 @@ struct WorkspaceItem: Identifiable, Hashable, Codable {
     let path: String
     let type: ItemType
     let name: String
-    var layout: WindowLayout = .default  // Add this line
+    var layout: WindowLayout = .default
+    var url: String?  // Optional URL for browser applications
     
     enum ItemType: String, Codable {
         case file
